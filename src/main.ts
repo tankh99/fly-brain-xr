@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { VRButton } from "three/addons/webxr/VRButton.js";
-import { ARENA_RADIUS_M, type StimulusSetup } from "./types";
+import { ARENA_RADIUS_MM, MM_TO_SCENE, type SimulationResult, type StimulusSetup } from "./types";
 import "./style.css";
 
 const mount = document.querySelector<HTMLDivElement>("#scene")!;
@@ -30,7 +30,7 @@ keyLight.castShadow = true;
 scene.add(keyLight);
 
 const floor = new THREE.Mesh(
-  new THREE.CircleGeometry(ARENA_RADIUS_M, 64),
+  new THREE.CircleGeometry(ARENA_RADIUS_MM * MM_TO_SCENE, 64),
   new THREE.MeshStandardMaterial({ color: 0x1b2929, roughness: 0.9, metalness: 0.05 }),
 );
 floor.rotation.x = -Math.PI / 2;
@@ -38,12 +38,12 @@ floor.receiveShadow = true;
 floor.name = "arena-floor";
 scene.add(floor);
 
-const grid = new THREE.GridHelper(ARENA_RADIUS_M * 2, 20, 0x5a7772, 0x30423e);
+const grid = new THREE.GridHelper(ARENA_RADIUS_MM * MM_TO_SCENE * 2, 20, 0x5a7772, 0x30423e);
 grid.position.y = 0.008;
 scene.add(grid);
 
 const boundary = new THREE.Mesh(
-  new THREE.TorusGeometry(ARENA_RADIUS_M, 0.018, 8, 96),
+  new THREE.TorusGeometry(ARENA_RADIUS_MM * MM_TO_SCENE, 0.018, 8, 96),
   new THREE.MeshStandardMaterial({ color: 0x5b746d, emissive: 0x182722 }),
 );
 boundary.rotation.x = Math.PI / 2;
@@ -96,23 +96,37 @@ const pointer = new THREE.Vector2();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const hitPoint = new THREE.Vector3();
 let currentSetup: StimulusSetup | null = null;
+let activeResult: SimulationResult | null = null;
+let playbackStartedAt = 0;
+let trajectoryLine: THREE.Line | null = null;
 
 function setCue(x: number, z: number, summary = "Pursuit target placed manually") {
   const radial = Math.hypot(x, z);
-  const scale = radial > ARENA_RADIUS_M - 0.3 ? (ARENA_RADIUS_M - 0.3) / radial : 1;
+  const scale = radial > ARENA_RADIUS_MM - 3 ? (ARENA_RADIUS_MM - 3) / radial : 1;
   const boundedX = x * scale;
   const boundedZ = z * scale;
-  cue.position.set(boundedX, 0, boundedZ);
+  cue.position.set(boundedX * MM_TO_SCENE, 0, boundedZ * MM_TO_SCENE);
   cue.visible = true;
-  currentSetup = { kind: "pursuit_target", x: boundedX, z: boundedZ, intensity: 1, summary };
-  coords.textContent = `target: x ${boundedX.toFixed(1)}m · z ${boundedZ.toFixed(1)}m`;
+  currentSetup = { kind: "pursuit_target", x: boundedX, z: boundedZ, summary };
+  document.querySelector<HTMLButtonElement>("#simulate")!.disabled = false;
+  coords.textContent = `target: x ${boundedX.toFixed(1)}mm · z ${boundedZ.toFixed(1)}mm`;
+  activeResult = null;
+  document.querySelector<HTMLParagraphElement>("#brain-status")!.textContent = "Target changed — run a new trial";
+  document.querySelector<HTMLDivElement>(".readout-badge")!.textContent = "AWAITING TRIAL";
+  if (trajectoryLine) {
+    scene.remove(trajectoryLine);
+    trajectoryLine.geometry.dispose();
+    trajectoryLine = null;
+  }
+  fly.position.set(0, 0.18, 0);
+  fly.rotation.y = 0;
   document.querySelector<HTMLParagraphElement>("#model-output")!.textContent =
-    `${summary}. Cue position configured; no neural or movement prediction has been generated.`;
+    `${summary}. Target configured; run a connectome pursuit trial to generate a model trajectory.`;
 }
 
 function setCueFromRay(ray: THREE.Ray) {
   if (!ray.intersectPlane(groundPlane, hitPoint)) return;
-  setCue(hitPoint.x, hitPoint.z);
+  setCue(hitPoint.x / MM_TO_SCENE, hitPoint.z / MM_TO_SCENE);
 }
 
 mount.addEventListener("pointerdown", (event) => {
@@ -128,8 +142,8 @@ for (const handIndex of [0, 1]) {
   scene.add(controller);
 }
 
-document.querySelector("#left-cue")!.addEventListener("click", () => setCue(-1.25, 0.3));
-document.querySelector("#right-cue")!.addEventListener("click", () => setCue(1.25, 0.3));
+document.querySelector("#left-cue")!.addEventListener("click", () => setCue(-12.5, -4));
+document.querySelector("#right-cue")!.addEventListener("click", () => setCue(12.5, -4));
 
 document.querySelector<HTMLButtonElement>("#interpret")!.addEventListener("click", async () => {
   const prompt = document.querySelector<HTMLTextAreaElement>("#prompt")!.value.trim();
@@ -150,9 +164,50 @@ document.querySelector<HTMLButtonElement>("#interpret")!.addEventListener("click
     if (!response.ok) throw new Error(payload.error ?? "Muse request failed");
     const setup = payload.setup as StimulusSetup;
     setCue(setup.x, setup.z, setup.summary);
-    message.textContent = `Muse set a ${setup.kind} cue · intensity ${setup.intensity.toFixed(1)}.`;
+    message.textContent = `Muse configured a ${setup.kind.replaceAll("_", " ")}.`;
   } catch (error) {
     message.textContent = error instanceof Error ? error.message : "Could not interpret that instruction.";
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.querySelector<HTMLButtonElement>("#simulate")!.addEventListener("click", async () => {
+  if (!currentSetup) {
+    message.textContent = "Place a target before running a trial.";
+    return;
+  }
+  const button = document.querySelector<HTMLButtonElement>("#simulate")!;
+  button.disabled = true;
+  message.textContent = "Running the FlyWire connectome pursuit trial on the local simulator…";
+  try {
+    const response = await fetch("/api/simulate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ setup: currentSetup }),
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error ?? "Simulation failed");
+    activeResult = payload as SimulationResult;
+    const points = activeResult.points.map((point) => new THREE.Vector3(
+      point.x * MM_TO_SCENE, 0.19, point.z * MM_TO_SCENE,
+    ));
+    if (trajectoryLine) {
+      scene.remove(trajectoryLine);
+      trajectoryLine.geometry.dispose();
+    }
+    trajectoryLine = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints(points),
+      new THREE.LineBasicMaterial({ color: 0x8ed3b0, linewidth: 2 }),
+    );
+    scene.add(trajectoryLine);
+    playbackStartedAt = clock.getElapsedTime();
+    message.textContent = `Model returned ${activeResult.points.length} trajectory samples.`;
+    document.querySelector<HTMLParagraphElement>("#model-output")!.textContent = activeResult.caveat;
+    document.querySelector<HTMLParagraphElement>("#brain-status")!.textContent = `${activeResult.model} · trajectory ready`;
+    document.querySelector<HTMLDivElement>(".readout-badge")!.textContent = "MODEL TRAJECTORY";
+  } catch (error) {
+    message.textContent = error instanceof Error ? error.message : "Simulation failed.";
   } finally {
     button.disabled = false;
   }
@@ -171,8 +226,17 @@ resize();
 const clock = new THREE.Clock();
 renderer.setAnimationLoop(() => {
   const elapsed = clock.getElapsedTime();
-  fly.rotation.y = Math.sin(elapsed * 0.45) * 0.06;
-  fly.position.y = 0.18 + Math.sin(elapsed * 2.1) * 0.012;
+  if (activeResult?.points.length) {
+    const points = activeResult.points;
+    const playbackTime = elapsed - playbackStartedAt + points[0].t;
+    const index = points.findIndex((point) => point.t >= playbackTime);
+    const current = points[Math.max(0, index < 0 ? points.length - 1 : index)];
+    fly.position.set(current.x * MM_TO_SCENE, 0.18, current.z * MM_TO_SCENE);
+    fly.rotation.y = current.yaw;
+  } else {
+    fly.rotation.y = Math.sin(elapsed * 0.45) * 0.06;
+    fly.position.y = 0.18 + Math.sin(elapsed * 2.1) * 0.012;
+  }
   cueGlow.scale.setScalar(1 + Math.sin(elapsed * 2.4) * 0.07);
   if (renderer.xr.isPresenting) {
     const controller = renderer.xr.getController(0);
@@ -185,3 +249,9 @@ renderer.setAnimationLoop(() => {
 
 // Keep state inspectable in devtools while the brain adapter is being built.
 Object.assign(window, { currentStimulus: () => currentSetup });
+
+fetch("/api/health").then((response) => response.json()).then((health) => {
+  const status = document.querySelector<HTMLParagraphElement>("#brain-status")!;
+  if (health.simulatorConfigured) status.textContent = "FlyWire pursuit runtime ready";
+  if (!health.museConfigured) message.textContent = "Target placement works manually. Add MODEL_API_KEY to .env to enable Muse Spark.";
+}).catch(() => {});

@@ -1,7 +1,11 @@
 import "dotenv/config";
+import { execFile } from "node:child_process";
+import path from "node:path";
+import { promisify } from "node:util";
 import express from "express";
 import OpenAI from "openai";
 
+const execFileAsync = promisify(execFile);
 const app = express();
 app.use(express.json({ limit: "8kb" }));
 
@@ -16,10 +20,9 @@ interface StimulusSetup {
 function isStimulusSetup(value: unknown): value is StimulusSetup {
   if (!value || typeof value !== "object") return false;
   const setup = value as Record<string, unknown>;
-  return (setup.kind === "pursuit_target" || setup.kind === "looming")
-    && typeof setup.x === "number" && Number.isFinite(setup.x) && setup.x >= -2.2 && setup.x <= 2.2
-    && typeof setup.z === "number" && Number.isFinite(setup.z) && setup.z >= -2.2 && setup.z <= 2.2
-    && typeof setup.intensity === "number" && Number.isFinite(setup.intensity) && setup.intensity >= 0.1 && setup.intensity <= 1
+  return setup.kind === "pursuit_target"
+    && typeof setup.x === "number" && Number.isFinite(setup.x) && setup.x >= -22 && setup.x <= 22
+    && typeof setup.z === "number" && Number.isFinite(setup.z) && setup.z >= -22 && setup.z <= 22
     && typeof setup.summary === "string" && setup.summary.length > 0 && setup.summary.length <= 120;
 }
 
@@ -31,20 +34,24 @@ const responseFormat = {
     schema: {
       type: "object",
       properties: {
-        kind: { type: "string", enum: ["pursuit_target", "looming"] },
-        x: { type: "number", description: "Left/right position in the arena, range -2.2 to 2.2 metres. Negative is left." },
-        z: { type: "number", description: "Near/far position in the arena, range -2.2 to 2.2 metres. Negative is toward the viewer." },
-        intensity: { type: "number", description: "Stimulus strength from 0.1 to 1." },
+        kind: { type: "string", enum: ["pursuit_target"] },
+        x: { type: "number", description: "Left/right position in the arena, range -22 to 22 millimetres. Negative is screen-left." },
+        z: { type: "number", description: "Near/far position in the arena, range -22 to 22 millimetres. Negative is forward from the fly." },
         summary: { type: "string", description: "One short plain-language summary of the configured cue." },
       },
-      required: ["kind", "x", "z", "intensity", "summary"],
+      required: ["kind", "x", "z", "summary"],
       additionalProperties: false,
     },
   },
 };
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ok: true, museConfigured: Boolean(process.env.MODEL_API_KEY), model: process.env.META_MODEL ?? "muse-spark-1.3" });
+  res.json({
+    ok: true,
+    museConfigured: Boolean(process.env.MODEL_API_KEY),
+    simulatorConfigured: Boolean(process.env.FLY_SIMULATOR_ROOT),
+    model: process.env.META_MODEL ?? "muse-spark-1.3",
+  });
 });
 
 app.post("/api/interpret-stimulus", async (req, res) => {
@@ -68,9 +75,9 @@ app.post("/api/interpret-stimulus", async (req, res) => {
           role: "system",
           content: [
             "You configure a small fruit-fly experiment arena. Convert the instruction into only a visual target setup.",
-            "Allowed kinds: pursuit_target or looming. Do not predict neural activity, movement, or behavior.",
-            "Coordinates are metres: x < 0 is left, x > 0 is right; z < 0 is near/viewer, z > 0 is far. Clamp x and z to [-2.2, 2.2], intensity to [0.1, 1].",
-            "If the instruction is ambiguous, choose pursuit_target at the center with intensity 0.5 and say so in summary.",
+            "The only allowed kind is pursuit_target. Do not predict neural activity, movement, or behavior.",
+            "Coordinates are millimetres in a 50mm arena: x < 0 is screen-left, x > 0 screen-right; z < 0 is forward from the fly, z > 0 behind. Clamp x and z to [-22, 22].",
+            "If the instruction is ambiguous, choose a pursuit target at x=0,z=-10 and say so in summary.",
           ].join(" "),
         },
         { role: "user", content: instruction.trim() },
@@ -86,6 +93,30 @@ app.post("/api/interpret-stimulus", async (req, res) => {
   } catch (error) {
     console.error("Muse stimulus interpretation failed:", error);
     return res.status(502).json({ error: "Muse could not configure that stimulus. Try a simpler instruction." });
+  }
+});
+
+app.post("/api/simulate", async (req, res) => {
+  const setup = req.body?.setup;
+  if (!isStimulusSetup(setup)) return res.status(400).json({ error: "Place a valid target in the arena first." });
+  const simulatorRoot = process.env.FLY_SIMULATOR_ROOT;
+  if (!simulatorRoot) return res.status(503).json({ error: "Connectome runtime is not configured. Set FLY_SIMULATOR_ROOT on the server." });
+
+  const python = process.env.FLY_SIMULATOR_PYTHON ?? path.join(simulatorRoot, ".venv", "bin", "python");
+  const bridge = path.resolve("simulation", "run_chase.py");
+  try {
+    const { stdout } = await execFileAsync(python, [bridge, JSON.stringify(setup)], {
+      cwd: simulatorRoot,
+      env: { ...process.env, PYTHONPATH: simulatorRoot },
+      timeout: 180_000,
+      maxBuffer: 4 * 1024 * 1024,
+    });
+    const resultLine = stdout.split("\n").find((line) => line.startsWith("RESULT_JSON:"));
+    if (!resultLine) return res.status(502).json({ error: "Simulator exited without a trajectory." });
+    return res.json(JSON.parse(resultLine.slice("RESULT_JSON:".length)));
+  } catch (error) {
+    console.error("Connectome simulation failed:", error);
+    return res.status(502).json({ error: "Connectome simulation failed. Check the local simulator and brain-data setup." });
   }
 });
 
