@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#10171b" />
+    <title>FLY / FIELD — embodied connectome lab</title>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand"><span class="brand-mark">F</span><span>FIELD NOTES <i>/</i> FLY</span></div>
+        <div class="build-tag"><span class="live-dot"></span> HACKATHON BUILD · 01</div>
+      </header>
+
+      <section class="hero">
+        <div>
+          <p class="eyebrow">CONNECTOME-DRIVEN SENSORIMOTOR EXPLORATION</p>
+          <h1>Give the fly<br /><em>a world to sense.</em></h1>
+          <p class="lede">Place a visual target in the arena. Explore how a connectome-based pursuit model responds.</p>
+        </div>
+        <div class="model-status"><span class="status-dot"></span><span><b>Brain runtime</b><small id="brain-status">Not connected — no predicted movement yet</small></span></div>
+      </section>
+
+      <section class="workspace">
+        <div class="scene-card">
+          <div class="scene-head">
+            <div><span class="eyebrow">01 / EXPERIMENT ARENA</span><h2>Place a target</h2></div>
+            <span class="scene-help">Click or pinch the floor</span>
+          </div>
+          <div id="scene" class="scene" aria-label="Interactive 3D fly arena"></div>
+          <div class="scene-foot"><span><i class="key food"></i> pursuit target</span><span><i class="key fly"></i> virtual fly</span><span id="coords">target: not placed</span></div>
+        </div>
+
+        <aside class="controls-card">
+          <span class="eyebrow">02 / MUSE EXPERIMENT SETUP</span>
+          <h2>Describe a stimulus</h2>
+          <p class="control-copy">Muse translates your instruction into a bounded target setup. It does not predict the fly's behavior.</p>
+          <label for="prompt">INSTRUCTION</label>
+          <textarea id="prompt" maxlength="300" placeholder="e.g. Place a moving target to the fly's left"></textarea>
+          <button id="interpret" class="primary-button"><span>✳</span> Interpret with Muse Spark</button>
+          <div class="divider"><span>or place it manually</span></div>
+          <div class="manual-row">
+            <button id="left-cue" class="secondary-button">Target on left</button>
+            <button id="right-cue" class="secondary-button">Target on right</button>
+          </div>
+          <p id="message" class="message" role="status">Muse API key is kept on the server. Add it to <code>.env</code> to enable interpretation.</p>
+          <div class="integrity-note"><b>Scientific integrity</b><br />This prototype has no connectome simulation connected. It will not draw or claim a predicted path until a runnable model is integrated.</div>
+        </aside>
+      </section>
+
+      <section class="readout">
+        <div><span class="eyebrow">MODEL OUTPUT</span><p id="model-output">Awaiting a verified connectome model. Scene interactions currently configure the stimulus only.</p></div>
+        <div class="readout-badge">NO SIMULATION YET</div>
+      </section>
+
+      <footer><span>WebXR prototype · Three.js</span><span>Meta Model API · Muse Spark <i>/</i> scientific model pending</span></footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
