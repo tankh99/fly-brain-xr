@@ -72,11 +72,15 @@ def main() -> int:
             else "FlyGym CPG baseline (no connectome brain)"
         )
         if control == "none":
-            caveat = "No-brain control: FlyGym's CPG drives walking; connectome input is disconnected."
+            caveat = (
+                "No-brain control: FlyGym's CPG drives walking; connectome input is disconnected. "
+                "Camera-derived targets use an approximate horizontal bearing and fixed virtual range."
+            )
         else:
             caveat = (
                 f"{control} pursuit trial. The upstream interface maps the visual target to LC10a input "
                 "and descending-neuron activity to FlyGym steering; walking uses FlyGym's CPG. "
+                "Camera-derived targets use an approximate horizontal bearing and fixed virtual range. "
                 "This is a model-conditioned virtual trajectory, not a claim about a living fly."
             )
         result = {
