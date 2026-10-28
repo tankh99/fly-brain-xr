@@ -1,14 +1,14 @@
-# FLY / FIELD — embodied connectome lab
+# FLY / FIELD — see through a fly's eyes
 
-Hackathon-built WebXR interface: place a visual pursuit target in a fly-scale arena, run a connectome pursuit trial, and inspect the model's virtual movement.
+Hackathon-built mobile/WebXR experience: capture one real-world frame, let Muse Spark localize a target, then enter first-person fly POV and watch a connectome pursuit trial. Repeat the same target with normal, mirrored, and disconnected wiring to see how the connectome changes the turn.
 
-## Current implementation status
+## Current implementation
 
-- Three.js arena with a virtual fly marker and manually placeable visual target.
-- WebXR entry point through Three.js `VRButton`; desktop mouse is the development fallback.
-- Muse Spark server-side structured-output endpoint translates text instructions into a bounded target position. The API key never goes to the browser.
-- `/api/simulate` runs the upstream FlyWire pursuit model from a separate checkout and returns an actual virtual-body trajectory. The upstream code and brain data are not copied into this repo.
-- The fly silhouette is a visual placeholder; the movement trajectory comes from the upstream FlyGym/MuJoCo body + connectome pursuit simulation. The pursuit input and motor mapping are interface choices documented by that simulator, not a complete biological emulation.
+- Low-clutter start screen; phone camera capture; fly-POV and observer views; eased start/end and progressive trajectory trail.
+- Muse Spark image grounding returns a target label and normalized image point. The app maps horizontal bearing into the fly arena; target depth is fixed/approximate, not recovered from the image. API keys stay server-side.
+- Three.js arena with manual target placement, desktop mouse fallback, and WebXR entry via Three.js `VRButton`.
+- `/api/simulate` runs the upstream FlyWire pursuit model from a separate local checkout and returns the virtual-body trajectory + descending turn-neuron activity.
+- The fly silhouette is a visual proxy; the simulated trajectory comes from the upstream FlyGym/MuJoCo body + connectome pursuit interface. This is not a complete biological emulation or prediction of a living fly.
 
 ## Run
 
@@ -30,14 +30,14 @@ uv pip install --python .venv/bin/python -e '.[brain]'
 ./.venv/bin/python scripts/fetch_brain_data.py
 ```
 
-Set `FLY_SIMULATOR_ROOT=/Users/<you>/Documents/Code/fly-simulator-upstream` in the app `.env`. The simulator checkout and its downloaded brain data stay outside this repository. The browser app is at Vite's local URL; real Quest Browser testing needs a secure HTTPS context, not a plain LAN HTTP URL.
+Set `FLY_SIMULATOR_ROOT=/Users/<you>/Documents/Code/fly-simulator-upstream` in the app `.env`. The simulator checkout and downloaded brain data stay outside this repository. The app uses `getUserMedia` for a local preview but sends **only one still frame after the user taps Scan** to Muse; it does not upload continuous video.
 
-Open the Vite URL on desktop for the first pass. WebXR headset testing requires a secure context and a supported browser; use localhost during development, then HTTPS for remote/headset testing.
+Phone camera access requires HTTPS on the phone (localhost is exempt only on the development computer). Quest WebXR also requires a supported browser and secure context; use HTTPS for remote/headset testing.
 
 ## Attribution and data handling
 
-The upstream `fly-simulator` source code is MIT, but its FlyWire-derived brain data is CC BY-NC 4.0. The data is installed in the separate local checkout and is not included here. Keep attribution and do not redistribute the data. The upstream simulator documents that odor-plume tracking does not reliably steer toward an odor source; this project uses its documented visual pursuit behavior instead.
+The upstream simulator source is MIT-licensed; its FlyWire-derived brain data is CC BY-NC 4.0. The data is not included or redistributed here. Preserve attribution. The upstream simulator reports that odor-plume tracking does not reliably steer toward an odor source, so this project uses its documented visual pursuit behavior instead.
 
 ## Hackathon contribution boundary
 
-This repository is a new hackathon project. The upstream simulator is a separate runtime dependency; this project's new work is the WebXR interface, Muse target setup, and simulation bridge. The final demo must identify those hackathon-built contributions and credit the upstream simulator/model/data. The FlyWire data itself is not included or redistributed here.
+This is a new hackathon repo. New contributions are the camera-to-Muse grounding flow, WebXR/POV experience, controlled brain/mirror/no-brain comparisons, and simulation bridge. Credit the upstream simulator/model/data in the demo and submission; distinguish their existing simulator from the functionality built here.

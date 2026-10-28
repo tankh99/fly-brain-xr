@@ -2,60 +2,71 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#10171b" />
-    <title>FLY / FIELD — embodied connectome lab</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101511" />
+    <title>FLY / FIELD — see through a fly's eyes</title>
   </head>
   <body>
-    <main class="shell">
-      <header class="topbar">
-        <div class="brand"><span class="brand-mark">F</span><span>FIELD NOTES <i>/</i> FLY</span></div>
-        <div class="build-tag"><span class="live-dot"></span> HACKATHON BUILD · 01</div>
+    <video id="world-camera" autoplay playsinline muted></video>
+    <main class="experience">
+      <div id="scene" aria-label="Fly-scale pursuit simulation"></div>
+
+      <header class="hud-top">
+        <div class="brand"><span class="brand-mark">F</span><span>FLY / FIELD</span></div>
+        <div class="brain-pill"><i></i><span id="brain-status">Connectome ready</span></div>
+        <button id="view-mode" class="view-button" aria-label="Toggle fly perspective">FLY POV</button>
       </header>
 
-      <section class="hero">
-        <div>
-          <p class="eyebrow">CONNECTOME-DRIVEN SENSORIMOTOR EXPLORATION</p>
-          <h1>Give the fly<br /><em>a world to sense.</em></h1>
-          <p class="lede">Place a visual target in the arena. Explore how a connectome-based pursuit model responds.</p>
+      <section id="intro" class="intro">
+        <p class="eyebrow">A CONNECTOME YOU CAN EXPERIENCE</p>
+        <h1>See the world<br />through a fly.</h1>
+        <p class="intro-copy">Point your phone at something. Muse finds it. Then follow a real connectome model as it turns toward the target.</p>
+        <div class="intro-actions">
+          <button id="start-camera" class="primary-button">Use my camera <span>↗</span></button>
+          <button id="start-arena" class="secondary-button">Explore the arena instead</button>
         </div>
-        <div class="model-status"><span class="status-dot"></span><span><b>Brain runtime</b><small id="brain-status">Not connected — no predicted movement yet</small></span></div>
+        <p class="privacy-note">A single still frame is sent to Muse only when you tap Scan. No continuous video is uploaded. Avoid people or private documents.</p>
       </section>
 
-      <section class="workspace">
-        <div class="scene-card">
-          <div class="scene-head">
-            <div><span class="eyebrow">01 / EXPERIMENT ARENA</span><h2>Place a target</h2></div>
-            <span class="scene-help">Click or pinch the floor</span>
-          </div>
-          <div id="scene" class="scene" aria-label="Interactive 3D fly arena"></div>
-          <div class="scene-foot"><span><i class="key food"></i> pursuit target</span><span><i class="key fly"></i> virtual fly</span><span id="coords">target: not placed</span></div>
+      <section id="trial-ui" class="trial-ui" hidden>
+        <div class="trial-heading">
+          <div><p class="eyebrow">LIVE EXPERIMENT</p><h2 id="target-label">Choose a target</h2></div>
+          <img id="captured-frame" alt="Captured target scene" hidden />
         </div>
 
-        <aside class="controls-card">
-          <span class="eyebrow">02 / MUSE EXPERIMENT SETUP</span>
-          <h2>Describe a stimulus</h2>
-          <p class="control-copy">Muse translates your instruction into a bounded target setup. It does not predict the fly's behavior.</p>
-          <label for="prompt">INSTRUCTION</label>
-          <textarea id="prompt" maxlength="300" placeholder="e.g. Place a moving target to the fly's left"></textarea>
-          <button id="interpret" class="primary-button"><span>✳</span> Interpret with Muse Spark</button>
-          <div class="divider"><span>or place it manually</span></div>
+        <div class="camera-actions">
+          <input id="object-prompt" maxlength="120" placeholder="Optional: find a mug, plant, lamp…" />
+          <button id="scan-camera" class="primary-button">Scan scene with Muse</button>
+        </div>
+
+        <div class="experiment-row">
+          <span class="eyebrow">COMPARE THE WIRING</span>
+          <div id="control-modes" class="segmented-control">
+            <button data-mode="brain" class="selected">Brain</button>
+            <button data-mode="mirror">Mirror</button>
+            <button data-mode="none">No brain</button>
+          </div>
+        </div>
+
+        <button id="simulate" class="run-button" disabled>Run pursuit trial</button>
+        <p id="message" class="message" role="status">Capture a target or open the manual controls.</p>
+
+        <details class="manual-controls">
+          <summary>Manual target / text command</summary>
+          <textarea id="prompt" maxlength="300" placeholder="e.g. Put the target left of the fly"></textarea>
           <div class="manual-row">
-            <button id="left-cue" class="secondary-button">Target on left</button>
-            <button id="right-cue" class="secondary-button">Target on right</button>
+            <button id="interpret" class="secondary-button">Set with Muse</button>
+            <button id="left-cue" class="secondary-button">Left</button>
+            <button id="right-cue" class="secondary-button">Right</button>
           </div>
-          <button id="simulate" class="run-button" disabled>Run connectome pursuit</button>
-          <p id="message" class="message" role="status">Muse API key is kept on the server. Add it to <code>.env</code> to enable interpretation.</p>
-          <div class="integrity-note"><b>Scientific integrity</b><br />This prototype has no connectome simulation connected. It will not draw or claim a predicted path until a runnable model is integrated.</div>
-        </aside>
-      </section>
+        </details>
 
-      <section class="readout">
-        <div><span class="eyebrow">MODEL OUTPUT</span><p id="model-output">Awaiting a verified connectome model. Scene interactions currently configure the stimulus only.</p></div>
-        <div class="readout-badge">NO SIMULATION YET</div>
+        <details class="science-note">
+          <summary>What is driving the motion?</summary>
+          <p id="model-output">The connectome pursuit model drives steering. Muse localizes the target; it does not decide the fly's behavior.</p>
+          <span class="readout-badge">NO TRIAL YET</span>
+        </details>
       </section>
-
-      <footer><span>WebXR prototype · Three.js</span><span>Meta Model API · Muse Spark <i>/</i> scientific model pending</span></footer>
     </main>
     <script type="module" src="/src/main.ts"></script>
   </body>

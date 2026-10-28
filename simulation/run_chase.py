@@ -22,6 +22,10 @@ def main() -> int:
     setup = json.loads(sys.argv[1])
     target_x_mm = float(setup["x"])
     target_z_mm = float(setup["z"])
+    control = setup.get("control", "brain")
+    if control not in ("brain", "mirror", "none"):
+        print("RESULT_JSON:{\"error\":\"Control must be brain, mirror, or none\"}")
+        return 2
     distance_mm = math.hypot(target_x_mm, target_z_mm)
     if distance_mm < 4.0:
         distance_mm = 4.0
@@ -34,7 +38,7 @@ def main() -> int:
     from fly_simulator.games.chase import ChaseConfig
     from fly_simulator.games.session import ChaseSession
 
-    brain = GameBrain("brain", data_dir=str(Path.cwd() / "data" / "brain"), seed=7)
+    brain = GameBrain(control, data_dir=str(Path.cwd() / "data" / "brain"), seed=7)
     session = None
     try:
         brain.start(timeout=120)
@@ -63,15 +67,24 @@ def main() -> int:
                 "turnRightHz": round(float(descending.get("turn_R", 0)), 2),
             })
 
-        result = {
-            "model": brain.layout.model_name if brain.layout else "Shiu2024-LIF FlyWire v783",
-            "points": points,
-            "target": {"x": round(target_x_mm, 3), "z": round(target_z_mm, 3)},
-            "caveat": (
-                "Connectome pursuit trial. The upstream interface maps the visual target to LC10a input "
+        model_name = (
+            brain.layout.model_name if brain.layout
+            else "FlyGym CPG baseline (no connectome brain)"
+        )
+        if control == "none":
+            caveat = "No-brain control: FlyGym's CPG drives walking; connectome input is disconnected."
+        else:
+            caveat = (
+                f"{control} pursuit trial. The upstream interface maps the visual target to LC10a input "
                 "and descending-neuron activity to FlyGym steering; walking uses FlyGym's CPG. "
                 "This is a model-conditioned virtual trajectory, not a claim about a living fly."
-            ),
+            )
+        result = {
+            "model": model_name,
+            "control": control,
+            "points": points,
+            "target": {"x": round(target_x_mm, 3), "z": round(target_z_mm, 3)},
+            "caveat": caveat,
         }
         print("RESULT_JSON:" + json.dumps(result, separators=(",", ":")))
         return 0
